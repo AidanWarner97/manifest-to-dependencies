@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XML to Dependencies Converter</title>
+    <!-- Include Tailwind CSS from CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script>
+        function applyToAll(fieldType) {
+            // Get the value from the corresponding "For All" input
+            let value = "";
+            if (fieldType === "remote_") {
+                value = document.getElementById("remoteForAll").value;
+            } else if (fieldType === "branch_") {
+                value = document.getElementById("branchForAll").value;
+            }
+            // Select all inputs whose name starts with the fieldType
+            const inputs = document.querySelectorAll(`input[name^="${fieldType}"]`);
+            inputs.forEach(input => {
+                input.value = value;
+            });
+        }
+
+        // Enable/disable Apply to All buttons based on input
+        function toggleApplyButton(inputId, buttonId) {
+            const input = document.getElementById(inputId);
+            const button = document.getElementById(buttonId);
+            button.disabled = input.value.trim() === "";
+        }
+
+        window.onload = function() {
+            // Initial state
+            toggleApplyButton('remoteForAll', 'applyRemote');
+            toggleApplyButton('branchForAll', 'applyBranch');
+            // Add listeners
+            document.getElementById('remoteForAll').addEventListener('input', function() {
+                toggleApplyButton('remoteForAll', 'applyRemote');
+            });
+            document.getElementById('branchForAll').addEventListener('input', function() {
+                toggleApplyButton('branchForAll', 'applyBranch');
+            });
+        };
+    </script>
+    <style>
+        button:disabled {
+            opacity:0.6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto p-6">
+        <h1 class="text-2xl font-bold mb-8">XML to Dependencies Converter</h1>
+
+        <form method="post" class="mb-10">
+            <div class="mb-6">
+                <label for="device_codename" class="block mb-2 font-semibold">Device Codename:</label>
+                <input type="text" id="device_codename" name="device_codename" value="{{ device_codename }}" required class="border border-gray-300 p-2 rounded w-full"/>
+            </div>
+            <div class="mb-6">
+                <label for="xml_content" class="block mb-2 font-semibold">XML Content:</label>
+                <textarea id="xml_content" name="xml_content" rows="10" required class="border border-gray-300 p-2 rounded w-full">{{ request.form.get('xml_content', '') }}</textarea>
+            </div>
+            <button type="submit" class="bg-blue-500 text-white p-2 rounded w-full sm:w-auto">Process XML</button>
+        </form>
+
+        {% if repositories %}
+        <h2 class="text-xl font-semibold mb-4">Processed XML Repositories</h2>
+
+        {% if error_message %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 mb-8 rounded relative" role="alert">
+            <strong class="font-bold">Error Processing</strong>
+            <span class="block sm:inline">{{ error_message }}</span>
+        </div>
+        {% endif %}
+
+        <form method="post" class="mb-10">
+            <table class="min-w-full border border-gray-300 mb-6">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="border border-gray-300 p-2">Repository</th>
+                        <th class="border border-gray-300 p-2">Path</th>
+                        <th class="border border-gray-300 p-2">Remote</th>
+                        <th class="border border-gray-300 p-2">Branch</th>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td class="border border-gray-300 p-2">
+                            <div class="flex gap-2">
+                                <input type="text" id="remoteForAll" class="border border-gray-300 p-2 rounded w-full" placeholder="Remote for All">
+                                <button type="button" id="applyRemote" onclick="applyToAll('remote_')" class="bg-blue-500 text-white p-2 rounded whitespace-nowrap">Apply to All</button>
+                            </div>
+                        </td>
+                        <td class="border border-gray-300 p-2">
+                            <div class="flex gap-2">
+                                <input type="text" id="branchForAll" class="border border-gray-300 p-2 rounded w-full" placeholder="Branch for All">
+                                <button type="button" id="applyBranch" onclick="applyToAll('branch_')" class="bg-blue-500 text-white p-2 rounded whitespace-nowrap">Apply to All</button>
+                            </div>
+                        </td>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for repo in repositories %}
+                    <tr class="{{ loop.index % 2 == 0 and 'bg-gray-50' }}">
+                        <td class="border border-gray-300 p-2">{{ repo.repository }}</td>
+                        <td class="border border-gray-300 p-2">{{ repo.target_path }}</td>
+                        <td class="border border-gray-300 p-2">
+                            <input type="text" name="remote_{{ repo.repository }}"
+                                   placeholder="Enter remote"
+                                   value="{{ request.form.get('remote_' ~ repo.repository, repo.remote) }}"
+                                   class="border border-gray-300 p-2 rounded w-full"/>
+                        </td>
+                        <td class="border border-gray-300 p-2">
+                            <input type="text" name="branch_{{ repo.repository }}"
+                                   placeholder="Enter branch"
+                                   value="{{ request.form.get('branch_' ~ repo.repository, repo.branch) }}"
+                                   class="border border-gray-300 p-2 rounded w-full"/>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <input type="hidden" name="repositories" value="{{ repositories_json }}">
+            <input type="hidden" name="device_codename" value="{{ device_codename }}">
+            <button type="submit" name="convert" class="bg-blue-500 text-white p-2 rounded w-full sm:w-auto">Convert to Dependencies</button>
+        </form>
+        {% endif %}
+
+        {% if output %}
+        <h2 class="text-xl font-semibold mb-4">Generated Dependencies:</h2>
+        <textarea id="outputText" rows="30" readonly class="border border-gray-300 p-2 rounded w-full mb-4">{{ output }}</textarea>
+        <button type="button" onclick="downloadOutput()" class="bg-blue-500 text-white p-2 rounded mb-8">Download as File</button>
+        <script>
+        function downloadOutput() {
+            const text = document.getElementById('outputText').value;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '{{ device_codename}}.dependencies';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        </script>
+        {% endif %}
+    </div>
+</body>
+</html>
