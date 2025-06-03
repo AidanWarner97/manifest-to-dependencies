@@ -1,0 +1,13 @@
+[Unit]
+Description=Manifest Converter Service
+After=network.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/manifest-to-dependencies
+ExecStart=/opt/manifest-to-dependencies/venv/bin/python /opt/manifest-to-dependencies/wsgi.py
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
